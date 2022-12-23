@@ -2,15 +2,15 @@
 
 initial_state(
     [
-        'X',                        /* Player turn */
+        "X",
         [
-            ['.', '.', '.', '.'],
-            ['.', '.', '.', '.'],
-            ['.', '.', '.', '.'],
-            ['.', '.', '.', '.']
-        ],                          /* Board representation */
-        [8, 8],                     /* Available pieces */
-        [0, 0]                      /* Captured pieces */
+            [" "," "," "," "],
+            [" "," "," "," "],
+            [" "," "," "," "],
+            [" "," "," "," "]
+        ],
+        [8,8],
+        [0,0]
     ]
 ).
 
@@ -26,28 +26,93 @@ get_board(GameState, Board) :-
 
 get_available(GameState, Available) :-
     nth0(2, GameState, Available).
+get_available(1, ["X", _, [Available, _], _], Available).
+get_available(1, ["O", _, [_, Available], _], Available).
 
 get_captured(GameState, Captured) :-
     nth0(3, GameState, Captured).
 
-%move(GameState, ['Drop', [Row, Col]], NewGameState) :-
+get_square([_, Board, _, _], Row, Col, Square) :-
+    nth0(Row, Board, RowList),  
+    nth0(Col, RowList, Square).
+
+change_player(["X",_,_,_],"O").
+change_player(["O",_,_,_],"X").
+
+update_available("X", Value, [_, E], [Value, E]).
+update_available("O", Value, [E, _], [E, Value]).
+
+replace_nth(N,I,V,O) :-
+    nth0(N,I,_,T),
+    nth0(N,O,V,T).
+
+replace_row_col(M,Row,Col,Cell,N) :-
+    nth0(Row,M,Old),
+    replace_nth(Col,Old,Cell,Upd),
+    replace_nth(Row,M,Upd,N).    
+
+move(GameState, [place, [Row, Col]], [NewPlayer, NewBoard, NewAvailable, Captured]) :-
+    get_available(1, GameState, Available),
+    get_available(GameState, AvailableList),
+    get_captured(GameState, Captured),
+    Available > 0,
+    get_player(GameState, Player),
+    Available1 is Available - 1,
+    update_available(Player, Available1, AvailableList, NewAvailable),
+    number_chars(RowIntTmp, [Row]),
+    RowInt is 4 - RowIntTmp,
+    letter_to_number(Col, ColInt),
+    get_square(GameState, RowInt, ColInt, Square),
+    Square == " ",
+    get_board(GameState, Board),
+    replace_row_col(Board, RowInt, ColInt, Player, NewBoard),
+    change_player(GameState,NewPlayer), !.
+move(GameState,[place,_],GameState):- print_code("Occupied cell!"), nl.
+
+verify_boundaries([place, [Row, Col]]) :-
+    Row @>= '1', Row @=< '4',
+    Col  @>= 'a', Col @=< 'd'.
+verify_boundaries([move, [RowSrc, ColSrc], [RowDest, ColDest]]) :-
+    RowSrc @>= '1', RowSrc @=< '4',
+    ColSrc @>= 'a', ColSrc @=< 'd',
+    RowDest @>= '1', RowDest @=< '4',
+    ColDest @>= 'a', ColDest @=< 'd',
+    RowSrc \== RowDest; ColSrc \== ColDest.
     
+ask_for_move('P', [place, [Row, Col]]) :-
+    repeat,
+    print_code("Choose a square to place a piece (e.g. a3)"), nl,
+    get_char(Col),
+    get_char(Row), skip_line,
+    verify_boundaries([place, [Row, Col]]), !.
+    
+ask_for_move('M', [move, [RowSrc, ColSrc], [RowDest, ColDest]]) :-
+    repeat,
+    print_code("Choose a piece to move (e.g. a3)"), nl,
+    get_char(ColSrc),
+    get_char(RowSrc), skip_line,
+    print_code("Choose a square to move the piece to (e.g. c2)"), nl,
+    get_char(ColDest),
+    get_char(RowDest), skip_line,
+    verify_boundaries([move, [RowSrc, ColSrc], [RowDest, ColDest]]), !.
 
 choose_move(GameState, human, Move) :-
-    nl.
+    repeat,
+    print_code("Choose a type of move [(P)lace, (M)ove]"), nl,
+    get_char(Type), skip_line,
+    ask_for_move(Type, Move), !.
 choose_move(GameState, computer, Move) :-
     valid_moves(GameState, Moves),
     choose_move(Level, GameState, Moves, Move).
 choose_move(1, _GameState, Moves, Moves) :-
     random_select(Move, Moves, _Rest).
 
-
 game_cycle(GameState) :-
     won(Winner, GameState), !, false.
 game_cycle(GameState) :-
     choose_move(GameState, Player, Move),
-    move(GameState, move, NewGameState),
-    display_game(GameState), !,
+    move(GameState, Move, NewGameState),
+    display_game(NewGameState), !,
     game_cycle(NewGameState).
 
 play :-
@@ -63,14 +128,14 @@ printn(S,N):-
     N1 is N - 1,
     printn(S,N1).
 
-printCode([]).
-printCode([X | XS]):-
+print_code([]).
+print_code([X | XS]):-
     put_code(X),
-    printCode(XS).
+    print_code(XS).
 print_text(Text,Symbol,Padding):-
     write(Symbol),
     printn(' ',Padding),
-    printCode(Text),
+    print_code(Text),
     printn(' ',Padding),
     write(Symbol).
 
@@ -125,7 +190,7 @@ print_board([X | XS],1):-
     append(Coordinate,Line,Printable),
     print_text(Printable,'*',13),nl,
     print_text("",'*',23),nl,
-    print_text("    A    B    C    D",'*',13),nl.
+    print_text("    a    b    c    d",'*',13),nl.
 
 print_board([X | XS],BoardSize):-
     intersperse(X," -- ",Line),
@@ -138,6 +203,9 @@ print_board([X | XS],BoardSize):-
     print_board(XS,NewSize).
 
 int_to_string(Int,[Str]):- Str is Int + "0".
+letter_to_number(Str,Int):- 
+    char_code(Str,A),
+    Int is A - 97.
 
 get_printable_info(GameState,[S8,S9]):-
     get_player(GameState,Player),
@@ -166,4 +234,4 @@ display_game(GameState):-
     print_text("",'*',23),nl,
     % computing strings based on GameState
     get_printable_info(GameState,[A,B]),
-    print_multi_banner(["Avaliable pieces:        Captured pieces: ",A,"",B],'*',2). 
+    print_multi_banner(["Avaliable pieces:        Captured pieces: ",A,"",B],'*',2),nl.
