@@ -4,19 +4,84 @@ initial_state(
     [
         "X",
         [
-            [" "," "," "," "],
-            [" "," "," "," "],
-            [" "," "," "," "],
-            [" "," "," "," "]
+            [" ", " ", " ", " "],
+            [" ", " ", " ", " "],
+            [" ", " ", " ", " "],
+            [" ", " ", " ", " "]
         ],
-        [8,8],
-        [0,0]
+        [8, 8],
+        [0, 0]
     ]
 ).
 
-won('X', [_, _, _, [C, _]]) :- C >= 6.
-won('0', [_, _, _, [_, C]]) :- C >= 6.
-won('X', []).
+list_shift_rotate(List,N,Res):-
+    append(ToRotate,ToKeep,List),
+    append(ToKeep,ToRotate,Res),
+    length(ToRotate,N).
+
+rotate_matrix([],_,[]).
+rotate_matrix([L | T],N,[Rotated | Res]):-
+    list_shift_rotate(L,N,Rotated),
+    N1 is N - 1,
+    rotate_matrix(T,N1,Res).
+
+fill_garbage(Board, NewBoard)
+    
+check_one_side_diags(Player, Board) :-
+    length(Board, Len),
+    Size is Len - 1,
+    rotate_matrix(Board, Size, TmpBoard),
+    transpose(TmpBoard, NewBoard),
+    fill_garbage(NewBoard, NewerBoard),
+    check_rows(NewerBoard).
+
+check_diags(Player, Board) :-
+    check_one_side_diags(Player, Board), !.
+check_diags(Player, Board) :-
+    transpose(Board, NewBoard),
+    check_one_side_diags(Player, NewBoard).
+
+check_row(Player, Row, Start) :-
+    nth0(Start, Row, Sq),
+    Sq == Player,
+    Start1 is Start + 1,
+    nth0(Start1, Row, Sq),
+    Sq == Player,
+    Start2 is Start1 + 1,
+    nth0(Start2, Row, Sq),
+    Sq == Player, !.
+check_row(Player, Row, PrevStart) :-
+    Start is PrevStart + 1,
+    length(Row,Iterationstmp),
+    Iterations is Iterationstmp - 3,
+    Start =< Iterations,
+    check_row(Player, Row, Start).
+
+check_rows(Player, [Row | T]) :-
+    \+ check_row(Player, Row, 0),
+    check_rows(Player, T).
+check_rows(Player, [Row | T]) :-
+    check_row(Player, Row, 0).
+
+check_cols(Player, Board) :-
+    transpose(Board, NewBoard),
+    check_rows(Player, NewBoard).  
+
+check_board(Player, Board) :-
+    check_cols(Player, Board).
+check_board(Player, Board) :-
+    check_rows(Player, Board).
+check_board(Player, Board) :-
+    check_diags(Player, Board).
+
+won("X", [_, _, _, [C, _]]) :- C >= 6.
+won("O", [_, _, _, [_, C]]) :- C >= 6.
+won("X", GameState) :-
+    get_board(GameState, Board),
+    check_board("X", Board).
+won("O", GameState) :-
+    get_board(GameState, Board),
+    check_board("O", Board).
 
 get_player(GameState, Player) :-
     nth0(0, GameState, Player).
@@ -108,8 +173,11 @@ choose_move(1, _GameState, Moves, Moves) :-
     random_select(Move, Moves, _Rest).
 
 game_cycle(GameState) :-
-    won(Winner, GameState), !, false.
+    won(Winner, GameState), 
+    congratulate_winner(Winner).
+
 game_cycle(GameState) :-
+    print_code("begin"),
     choose_move(GameState, Player, Move),
     move(GameState, Move, NewGameState),
     display_game(NewGameState), !,
@@ -235,3 +303,7 @@ display_game(GameState):-
     % computing strings based on GameState
     get_printable_info(GameState,[A,B]),
     print_multi_banner(["Avaliable pieces:        Captured pieces: ",A,"",B],'*',2),nl.
+
+congratulate_winner(Winner):- 
+    append("The winner is  ",Winner,Msg),
+    print_multi_banner([Msg],'*',15).
