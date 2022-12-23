@@ -25,20 +25,27 @@ rotate_matrix([L | T],N,[Rotated | Res]):-
     N1 is N - 1,
     rotate_matrix(T,N1,Res).
 
-fill_garbage(Board, NewBoard)
+get_diags([],_,_,[]).
+get_diags([Row | T], N,Size,[Bigger, Smaller | Rest]) :-
+    append(Smaller, Bigger, Row),
+    length(Bigger,N),
+    SmallerLen is Size - N,
+    length(Smaller,SmallerLen),
+    N1 is N - 1,
+    get_diags(T, N1, Size,Rest).
     
 check_one_side_diags(Player, Board) :-
     length(Board, Len),
     Size is Len - 1,
     rotate_matrix(Board, Size, TmpBoard),
     transpose(TmpBoard, NewBoard),
-    fill_garbage(NewBoard, NewerBoard),
-    check_rows(NewerBoard).
+    get_diags(NewBoard, Len,Len,NewerBoard),
+    check_rows(Player,NewerBoard).
 
 check_diags(Player, Board) :-
     check_one_side_diags(Player, Board), !.
 check_diags(Player, Board) :-
-    transpose(Board, NewBoard),
+    reverse(Board, NewBoard),
     check_one_side_diags(Player, NewBoard).
 
 check_row(Player, Row, Start) :-
