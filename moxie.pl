@@ -123,6 +123,19 @@ replace_row_col(M,Row,Col,Cell,N) :-
     replace_nth(Col,Old,Cell,Upd),
     replace_nth(Row,M,Upd,N).    
 
+is_next_to(RowSrc, ColSrc, RowDest, ColDest) :-
+    D is sqrt((RowDest-RowSrc)^2 + (ColDest-ColSrc)^2),
+    D =< sqrt(2).
+
+format_coordinates(InRow, InCol, OutRow, OutCol) :-
+    number_chars(RowIntTmp, [InRow]),
+    OutRow is 4 - RowIntTmp,
+    letter_to_number(InCol, OutCol).
+
+is_empty_square(GameState, Row, Col) :-
+    get_square(GameState, Row, Col, Square),
+    Square == " ".
+
 move(GameState, [place, [Row, Col]], [NewPlayer, NewBoard, NewAvailable, Captured]) :-
     get_available(1, GameState, Available),
     get_available(GameState, AvailableList),
@@ -131,16 +144,31 @@ move(GameState, [place, [Row, Col]], [NewPlayer, NewBoard, NewAvailable, Capture
     get_player(GameState, Player),
     Available1 is Available - 1,
     update_available(Player, Available1, AvailableList, NewAvailable),
-    number_chars(RowIntTmp, [Row]),
-    RowInt is 4 - RowIntTmp,
-    letter_to_number(Col, ColInt),
-    get_square(GameState, RowInt, ColInt, Square),
-    Square == " ",
+    format_coordinates(Row, Col, RowInt, ColInt),
+    is_empty_square(GameState, RowInt,ColInt),
     get_board(GameState, Board),
     replace_row_col(Board, RowInt, ColInt, Player, NewBoard),
     change_player(GameState,NewPlayer), !.
-move(GameState,[place,_],GameState):- print_code("Occupied cell!"), nl.
+move(GameState,[place,_],GameState):- 
+    print_code("Occupied cell!"), nl.
 
+move(GameState,[move, [InRowSrc, InColSrc], [InRowDest, InColDest]], [NewPlayer, NewBoard, Available, Captured]) :- 
+    get_available(GameState, Available),
+    get_captured(GameState, Captured),
+    get_board(GameState, Board),
+    get_player(GameState,Player),
+    format_coordinates(InRowSrc, InColSrc, RowSrc, ColSrc),
+    format_coordinates(InRowDest, InColDest, RowDest, ColDest),
+    is_next_to(RowSrc, ColSrc, RowDest, ColDest),                   % check if the squares are adjacent
+    is_empty_square(GameState, RowDest, ColDest),                   % check if Destination is empty
+    get_square(GameState, RowSrc, ColSrc, Square),                  % check if the players are moving their pieces
+    Square == Player,
+    replace_row_col(Board, RowSrc, ColSrc, " ", TmpBoard),          % executing move
+    replace_row_col(TmpBoard, RowDest, ColDest, Player, NewBoard),
+    change_player(GameState, NewPlayer), ! .
+move(GameState,[move, [RowSrc, ColSrc], [RowDest, ColDest]], GameState) :- 
+    print_code("Invalid Move!"), nl,
+    print_code("You must move YOUR piece to an ADJACENT square that is EMPTY"), nl.
 verify_boundaries([place, [Row, Col]]) :-
     Row @>= '1', Row @=< '4',
     Col  @>= 'a', Col @=< 'd'.
@@ -184,7 +212,6 @@ game_cycle(GameState) :-
     congratulate_winner(Winner).
 
 game_cycle(GameState) :-
-    print_code("begin"),
     choose_move(GameState, Player, Move),
     move(GameState, Move, NewGameState),
     display_game(NewGameState), !,
