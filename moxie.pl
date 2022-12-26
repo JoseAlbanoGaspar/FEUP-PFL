@@ -148,7 +148,7 @@ move(GameState, [place, [Row, Col]], [NewPlayer, NewBoard, NewAvailable, Capture
     is_empty_square(GameState, RowInt,ColInt),
     get_board(GameState, Board),
     replace_row_col(Board, RowInt, ColInt, Player, NewBoard),
-    change_player(GameState,NewPlayer), !.
+    change_player(GameState, NewPlayer), !.
 move(GameState,[place,_],GameState):- 
     print_code("Occupied cell!"), nl.
 
@@ -166,9 +166,10 @@ move(GameState,[move, [InRowSrc, InColSrc], [InRowDest, InColDest]], [NewPlayer,
     replace_row_col(Board, RowSrc, ColSrc, " ", TmpBoard),          % executing move
     replace_row_col(TmpBoard, RowDest, ColDest, Player, NewBoard),
     change_player(GameState, NewPlayer), ! .
-move(GameState,[move, [RowSrc, ColSrc], [RowDest, ColDest]], GameState) :- 
+move(GameState,[move, [_RowSrc, _ColSrc], [_RowDest, _ColDest]], GameState) :- 
     print_code("Invalid Move!"), nl,
     print_code("You must move YOUR piece to an ADJACENT square that is EMPTY"), nl.
+
 verify_boundaries([place, [Row, Col]]) :-
     Row @>= '1', Row @=< '4',
     Col  @>= 'a', Col @=< 'd'.
@@ -341,3 +342,14 @@ display_game(GameState):-
 congratulate_winner(Winner):- 
     append("The winner is  ",Winner,Msg),
     print_multi_banner([Msg],'*',15).
+
+verify_opt(Opt) :-
+    Opt \= 'A', Opt \= 'B', 
+    print_code("Please enter a valid mode!"), nl.
+
+display_opt(Opt) :-
+    print_multi_banner([" A - 1P  vs  CPU", "B - 1P  vs  2P"],'*',16),nl,
+    repeat,
+    print_code("Choose a game mode:"), nl,
+    get_char(Opt), skip_line,
+    \+ verify_opt(Opt), !.
