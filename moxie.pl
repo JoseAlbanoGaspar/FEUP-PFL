@@ -123,8 +123,10 @@ replace_row_col(M,Row,Col,Cell,N) :-
     replace_nth(Col,Old,Cell,Upd),
     replace_nth(Row,M,Upd,N).    
 
-is_next_to(RowSrc, ColSrc, RowDest, ColDest) :-
-    D is sqrt((RowDest-RowSrc)^2 + (ColDest-ColSrc)^2),
+is_next_to(RowSrc, ColSrc, RowDest, ColDest,[DirRow, DirCol]) :-
+    DirRow is RowDest - RowSrc,
+    DirCol is ColDest - ColSrc,
+    D is sqrt((DirRow)^2 + (DirCol)^2),
     D =< sqrt(2).
 
 format_coordinates(InRow, InCol, OutRow, OutCol) :-
@@ -159,7 +161,7 @@ move(GameState,[move, [InRowSrc, InColSrc], [InRowDest, InColDest]], [NewPlayer,
     get_player(GameState,Player),
     format_coordinates(InRowSrc, InColSrc, RowSrc, ColSrc),
     format_coordinates(InRowDest, InColDest, RowDest, ColDest),
-    is_next_to(RowSrc, ColSrc, RowDest, ColDest),                   % check if the squares are adjacent
+    is_next_to(RowSrc, ColSrc, RowDest, ColDest, _Dir),             % check if the squares are adjacent
     is_empty_square(GameState, RowDest, ColDest),                   % check if Destination is empty
     get_square(GameState, RowSrc, ColSrc, Square),                  % check if the players are moving their pieces
     Square == Player,
