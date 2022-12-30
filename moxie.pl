@@ -14,14 +14,159 @@ initial_state(
         [0, 0]
     ]
 ).
+% --------------------------------------------------
+%        U T I L I T Y   F U N C T I O N S 
+% --------------------------------------------------
+distance(Row1, Col1, Row2, Col2, D) :- 
+    D is sqrt((Row2-Row1)^2 + (Col2-Col1)^2).
+    
+intersperse([X],_,X).
+intersperse([X,Y|XS],Sep,Res):-
+    append(X, Sep,Res1),
+    append(Res1,Y,Res2),
+    intersperse([Res2 | XS],Sep,Res).
 
 list_shift_rotate(List,N,Res):-
     append(ToRotate,ToKeep,List),
     append(ToKeep,ToRotate,Res),
     length(ToRotate,N).
+
+int_to_string(Int,[Str]):- Str is Int + "0".
+letter_to_number(Str,Int):- 
+    char_code(Str,A),
+    Int is A - 97.
+
+filter_coordinates(_, _, [], []).
+filter_coordinates(GameState, Player, [Row-Col | T], K) :-
+    \+ is_piece(Player, GameState, Row, Col), !,
+    filter_coordinates(GameState, Player, T, K).
+filter_coordinates(GameState, Player, [Row-Col | T], [Row-Col | K]) :-
+    filter_coordinates(GameState, Player, T, K).
+
+inbounds(GameState, Row, Col) :-
+    get_board(GameState, Board),
+    replace_row_col(Board,Row,Col,_,_).
+
+is_next_to(RowSrc, ColSrc, RowDest, ColSrc, [-1, 0]) :-
+    RowSrc > 0,
+    RowDest is RowSrc - 1.
+is_next_to(RowSrc, ColSrc, RowSrc, ColDest, [0, -1]) :-
+    ColSrc > 0,
+    ColDest is ColSrc - 1.
+is_next_to(RowSrc, ColSrc, RowDest, ColSrc, [1, 0]) :-
+    RowSrc < 3,
+    RowDest is RowSrc + 1.
+is_next_to(RowSrc, ColSrc, RowSrc, ColDest, [0, 1]) :-
+    ColSrc < 3,
+    ColDest is ColSrc + 1.
+is_next_to(RowSrc, ColSrc, RowDest, ColDest, [-1, -1]) :-
+    is_next_to(RowSrc, ColSrc, RowDest, _, [-1, 0]),
+    is_next_to(RowSrc, ColSrc, _, ColDest, [0, -1]).
+is_next_to(RowSrc, ColSrc, RowDest, ColDest, [1, 1]) :-
+    is_next_to(RowSrc, ColSrc, RowDest, _, [1, 0]),
+    is_next_to(RowSrc, ColSrc, _, ColDest, [0, 1]).
+is_next_to(RowSrc, ColSrc, RowDest, ColDest, [-1, 1]) :-
+    is_next_to(RowSrc, ColSrc, RowDest, _, [-1, 0]),
+    is_next_to(RowSrc, ColSrc, _, ColDest, [0, 1]).
+is_next_to(RowSrc, ColSrc, RowDest, ColDest, [1, -1]) :-
+    is_next_to(RowSrc, ColSrc, RowDest, _, [1, 0]),
+    is_next_to(RowSrc, ColSrc, _, ColDest, [0, -1]).
+
+separated([],_Pred,[],[]).
+
+separated([H | T],Pred,Yes,[H | Nos]):-
+    G =.. [Pred,H],
+    \+ G, !, separated(T,Pred,Yes,Nos).
+
+separated([H | T],Pred,[H | Yeses],No):-
+    G =.. [Pred,H],
+    G,
+    separated(T,Pred,Yeses,No).
+
+is_jump([jump, _, _]).
+
+is_number(X,Digit) :-
+    char_code('0',Zero),
+    char_code('9',Nine),
+    char_code(X,Digit),
+    Digit >= Zero,
+    Digit =< Nine.
+
+is_char(X) :- 
+    char_code('a',A),
+    char_code('z',Z),
+    char_code(X,Char),
+    Char >= A,
+    Char =< Z.
+
+check_boundaries(X,Min,Max) :-
+    X >= Min ,
+    X =< Max.
+check_boundaries(_,_,_) :-
+    print_code("Choose a valid option!"),nl,
+    fail.
+
+read_number_acc(X, X) :- peek_code(10), !.
+read_number_acc(Acc, X) :- \+ peek_code(10),
+                           get_code(Code),
+                           char_code('0', Zero),
+                           Digit is Code-Zero,
+                           Digit >= 0,
+                           Digit < 10,
+                           NewAcc is Acc*10 + Digit,
+                           read_number_acc(NewAcc, X).
+
+read_number(X) :- read_number_acc(0, X),!,
+                  get_code(10).
+read_number(_X):- skip_line,fail.
+read_until_between(Min, Max, X):-
+    repeat,
+    print_code("Choose a jump:"), nl,
+    read_number(X),
+    check_boundaries(X, Min, Max),
+    !.
+read_until_between(Min, Max, Value):-read_until_between(Min, Max, Value).
+
+printn(_,0).
+printn(S,N):-
+    write(S),
+    N1 is N - 1,
+    printn(S,N1).
+
+print_code([]).
+print_code([X | XS]):-
+    put_code(X),
+    print_code(XS).
+print_text(Text,Symbol,Padding):-
+    write(Symbol),
+    printn(' ',Padding),
+    print_code(Text),
+    printn(' ',Padding),
+    write(Symbol).
+
+print_texts([],_,_,_).
+print_texts([Text | T],Symbol,Size,Padding):-
+        length(Text,TextSize),
+        ExtraPadding = (Size - TextSize) / 2,
+        TotPad = Padding + round(ExtraPadding),
+        print_text(Text,Symbol,TotPad),
+        nl,
+        print_texts(T,Symbol,Size,Padding).
+
+biggest([], []).
+biggest([Biggest | T], Biggest) :- 
+        length(Biggest, BiggestLen),
+        biggest(T, SecondBiggest),
+        length(SecondBiggest, SecondBiggestLen),
+        SecondBiggestLen =< BiggestLen,
+        !.
+
+biggest([_ | T], Biggest) :- biggest(T, Biggest).
+
 % --------------------------------------------------
 %               G A M E    O V E R
 % --------------------------------------------------
+
 rotate_matrix([],_,[]).
 rotate_matrix([L | T],N,[Rotated | Res]):-
     list_shift_rotate(L,N,Rotated),
@@ -92,21 +237,16 @@ game_over(GameState, "X") :-
 game_over(GameState, "O") :-
     get_board(GameState, Board),
     check_board("O", Board).
+
 % --------------------------------------------------
 %        G A M E S T A T E    G E T T E R S
 % --------------------------------------------------
+
 get_player(GameState, Player) :-
     nth0(0, GameState, Player).
 
 get_board(GameState, Board) :-
     nth0(1, GameState, Board).
-
-filter_coordinates(_, _, [], []).
-filter_coordinates(GameState, Player, [Row-Col | T], K) :-
-    \+ is_piece(Player, GameState, Row, Col), !,
-    filter_coordinates(GameState, Player, T, K).
-filter_coordinates(GameState, Player, [Row-Col | T], [Row-Col | K]) :-
-    filter_coordinates(GameState, Player, T, K).
 
 get_pieces(GameState, Player, Pieces) :-
     findall(Row-Col, inbounds(GameState, Row, Col), Coordinates),
@@ -130,6 +270,10 @@ get_square([_, Board, _, _], Row, Col, Square) :-
     nth0(Row, Board, RowList),  
     nth0(Col, RowList, Square).
 
+% --------------------------------------------------
+%        U P D A T I N G   G A M E S T A T E
+% --------------------------------------------------
+
 change_player(["X",_,_,_],"O").
 change_player(["O",_,_,_],"X").
 
@@ -145,34 +289,6 @@ replace_row_col(M,Row,Col,Cell,N) :-
     replace_nth(Col,Old,Cell,Upd),
     replace_nth(Row,M,Upd,N).    
 
-is_next_to(RowSrc, ColSrc, RowDest, ColSrc, [-1, 0]) :-
-    RowSrc > 0,
-    RowDest is RowSrc - 1.
-is_next_to(RowSrc, ColSrc, RowSrc, ColDest, [0, -1]) :-
-    ColSrc > 0,
-    ColDest is ColSrc - 1.
-is_next_to(RowSrc, ColSrc, RowDest, ColSrc, [1, 0]) :-
-    RowSrc < 3,
-    RowDest is RowSrc + 1.
-is_next_to(RowSrc, ColSrc, RowSrc, ColDest, [0, 1]) :-
-    ColSrc < 3,
-    ColDest is ColSrc + 1.
-is_next_to(RowSrc, ColSrc, RowDest, ColDest, [-1, -1]) :-
-    is_next_to(RowSrc, ColSrc, RowDest, _, [-1, 0]),
-    is_next_to(RowSrc, ColSrc, _, ColDest, [0, -1]).
-is_next_to(RowSrc, ColSrc, RowDest, ColDest, [1, 1]) :-
-    is_next_to(RowSrc, ColSrc, RowDest, _, [1, 0]),
-    is_next_to(RowSrc, ColSrc, _, ColDest, [0, 1]).
-is_next_to(RowSrc, ColSrc, RowDest, ColDest, [-1, 1]) :-
-    is_next_to(RowSrc, ColSrc, RowDest, _, [-1, 0]),
-    is_next_to(RowSrc, ColSrc, _, ColDest, [0, 1]).
-is_next_to(RowSrc, ColSrc, RowDest, ColDest, [1, -1]) :-
-    is_next_to(RowSrc, ColSrc, RowDest, _, [1, 0]),
-    is_next_to(RowSrc, ColSrc, _, ColDest, [0, -1]).
-
-inbounds(GameState, Row, Col) :-
-    get_board(GameState, Board),
-    replace_row_col(Board,Row,Col,_,_).
 % ------------------------------------------------------------------
 %         I N P U T  V S .  I N T E R N A L  C O O R D I N A T E S
 % -------------------------------------------------------------------
@@ -189,6 +305,7 @@ unformat_coordinates([InRow, InCol], Str) :-
 % --------------------------------------------------
 %         A N A L Y S I N G  P O S I T I O N
 % --------------------------------------------------
+
 is_empty_square(GameState, Row, Col) :-
     get_square(GameState, Row, Col, Square),
     Square == " ".
@@ -196,9 +313,11 @@ is_empty_square(GameState, Row, Col) :-
 is_piece(Piece, GameState, Row, Col) :-
     get_square(GameState, Row, Col, Square),
     Square == Piece.
+
 % --------------------------------------------------
 %                M O V E M E N T S
 % --------------------------------------------------
+
 make_jump(GameState, RowPiece, ColPiece, [Player, NewBoard, NewAvailable, NewCaptured], RowDest, ColDest) :-
     get_available(GameState, NewAvailable),
     get_board(GameState, Board),
@@ -253,47 +372,6 @@ move(GameState, [move, [RowSrc, ColSrc], [RowDest, ColDest]], [NewPlayer, NewBoa
 % --------------------------------------------------
 %         H U M A N   M O V E   I N P U T
 % --------------------------------------------------
-is_number(X,Digit) :-
-    char_code('0',Zero),
-    char_code('9',Nine),
-    char_code(X,Digit),
-    Digit >= Zero,
-    Digit =< Nine.
-
-is_char(X) :- 
-    char_code('a',A),
-    char_code('z',Z),
-    char_code(X,Char),
-    Char >= A,
-    Char =< Z.
-
-check_boundaries(X,Min,Max) :-
-    X >= Min ,
-    X =< Max.
-check_boundaries(_,_,_) :-
-    print_code("Choose a valid option!"),nl,
-    fail.
-
-read_number_acc(X, X) :- peek_code(10), !.
-read_number_acc(Acc, X) :- \+ peek_code(10),
-                           get_code(Code),
-                           char_code('0', Zero),
-                           Digit is Code-Zero,
-                           Digit >= 0,
-                           Digit < 10,
-                           NewAcc is Acc*10 + Digit,
-                           read_number_acc(NewAcc, X).
-
-read_number(X) :- read_number_acc(0, X),!,
-                  get_code(10).
-read_number(_X):- skip_line,fail.
-read_until_between(Min,Max,X):-
-    repeat,
-    print_code("Choose a jump:"), nl,
-    read_number(X),
-    check_boundaries(X,Min,Max),
-    !.
-read_until_between(Min,Max,Value):-read_until_between(Min,Max,Value).
 
 ask_for_move(Jumps, Move) :-
     display_jumps(Jumps, 1),
@@ -326,6 +404,7 @@ ask_for_move('M', [move, [RowSrc, ColSrc], [RowDest, ColDest]]) :-
 % --------------------------------------------------
 %        V A L I D   M O V E S   F O R  C P U 
 % --------------------------------------------------
+
 valid_moves(GameState, Jumps) :-
     findall(Move, move(GameState, Move, _NewGameState), Moves),
     separated(Moves, is_jump, Jumps, _),
@@ -333,20 +412,6 @@ valid_moves(GameState, Jumps) :-
     Len > 0.
 valid_moves(GameState, Moves) :-
     findall(Move, move(GameState, Move, _NewGameState), Moves).
-
-separated([],_Pred,[],[]).
-
-separated([H | T],Pred,Yes,[H | Nos]):-
-    G =.. [Pred,H],
-    \+ G, !, separated(T,Pred,Yes,Nos).
-
-separated([H | T],Pred,[H | Yeses],No):-
-    G =.. [Pred,H],
-    G,
-    separated(T,Pred,Yeses,No).
-
-is_jump([jump, _, _]).
-
 
 % --------------------------------------------------
 %     G E T T I N G   H U M A N / C P U   M O V E
@@ -407,43 +472,6 @@ play :-
 % --------------------------------------------------
 %         U S E R     I N T E R F A C E
 % --------------------------------------------------
-printn(_,0).
-printn(S,N):-
-    write(S),
-    N1 is N - 1,
-    printn(S,N1).
-
-print_code([]).
-print_code([X | XS]):-
-    put_code(X),
-    print_code(XS).
-print_text(Text,Symbol,Padding):-
-    write(Symbol),
-    printn(' ',Padding),
-    print_code(Text),
-    printn(' ',Padding),
-    write(Symbol).
-
-print_texts([],_,_,_).
-print_texts([Text | T],Symbol,Size,Padding):-
-        length(Text,TextSize),
-        ExtraPadding = (Size - TextSize) / 2,
-        TotPad = Padding + round(ExtraPadding),
-        print_text(Text,Symbol,TotPad),
-        nl,
-        print_texts(T,Symbol,Size,Padding).
-
-biggest([], []).
-biggest([Biggest | T], Biggest) :- 
-        length(Biggest, BiggestLen),
-        biggest(T, SecondBiggest),
-        length(SecondBiggest, SecondBiggestLen),
-        SecondBiggestLen =< BiggestLen,
-        !.
-
-biggest([_ | T], Biggest) :- biggest(T, Biggest).
-
-
 print_multi_banner(LoL,Symbol,Padding):-   % prints banners
     biggest(LoL,BigText),
     length(BigText,N),
@@ -461,12 +489,6 @@ print_multi_banner(LoL,Symbol,Padding):-   % prints banners
     write(Symbol),
     nl,
     printn(Symbol,TotLen).
-
-intersperse([X],_,X).
-intersperse([X,Y|XS],Sep,Res):-
-    append(X, Sep,Res1),
-    append(Res1,Y,Res2),
-    intersperse([Res2 | XS],Sep,Res).
 
 print_board([X | _],1):-
     intersperse(X," -- ",Line),
@@ -486,11 +508,6 @@ print_board([X | XS],BoardSize):-
     print_text("    |    |    |    |",'*',13),nl,
     NewSize is BoardSize - 1,
     print_board(XS,NewSize).
-
-int_to_string(Int,[Str]):- Str is Int + "0".
-letter_to_number(Str,Int):- 
-    char_code(Str,A),
-    Int is A - 97.
 
 get_printable_info(GameState,[S8,S9]):-
     get_player(GameState,Player),
@@ -545,7 +562,6 @@ print_jump([H | T]) :-
     print_code(" -> "),
     print_jump(T).
 
-
 display_jumps([],_).
 display_jumps([Jump | T],N) :- 
     nth0(2,Jump,[Piece | Places]),
@@ -567,8 +583,6 @@ display_jumps([Jump | T],N) :-
 % --------------------------------------------------
 %    A R T I F I C I A L  I N T E L I G E N C E
 % --------------------------------------------------
-distance(Row1, Col1, Row2, Col2, D) :- 
-    D is sqrt((Row2-Row1)^2 + (Col2-Col1)^2).
 
 min4(V1, V2, V3, V4, V1) :-
     V1 =< V2,
