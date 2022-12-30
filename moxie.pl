@@ -19,7 +19,9 @@ list_shift_rotate(List,N,Res):-
     append(ToRotate,ToKeep,List),
     append(ToKeep,ToRotate,Res),
     length(ToRotate,N).
-
+% --------------------------------------------------
+%               G A M E    O V E R
+% --------------------------------------------------
 rotate_matrix([],_,[]).
 rotate_matrix([L | T],N,[Rotated | Res]):-
     list_shift_rotate(L,N,Rotated),
@@ -90,12 +92,25 @@ game_over(GameState, "X") :-
 game_over(GameState, "O") :-
     get_board(GameState, Board),
     check_board("O", Board).
-
+% --------------------------------------------------
+%        G A M E S T A T E    G E T T E R S
+% --------------------------------------------------
 get_player(GameState, Player) :-
     nth0(0, GameState, Player).
 
 get_board(GameState, Board) :-
     nth0(1, GameState, Board).
+
+filter_coordinates(_, _, [], []).
+filter_coordinates(GameState, Player, [Row-Col | T], K) :-
+    \+ is_piece(Player, GameState, Row, Col), !,
+    filter_coordinates(GameState, Player, T, K).
+filter_coordinates(GameState, Player, [Row-Col | T], [Row-Col | K]) :-
+    filter_coordinates(GameState, Player, T, K).
+
+get_pieces(GameState, Player, Pieces) :-
+    findall(Row-Col, inbounds(GameState, Row, Col), Coordinates),
+    filter_coordinates(GameState, Player, Coordinates, Pieces).
 
 get_available(GameState, Available) :-
     nth0(2, GameState, Available).
@@ -158,7 +173,9 @@ is_next_to(RowSrc, ColSrc, RowDest, ColDest, [1, -1]) :-
 inbounds(GameState, Row, Col) :-
     get_board(GameState, Board),
     replace_row_col(Board,Row,Col,_,_).
-
+% ------------------------------------------------------------------
+%         I N P U T  V S .  I N T E R N A L  C O O R D I N A T E S
+% -------------------------------------------------------------------
 format_coordinates(InRow, InCol, OutRow, OutCol) :-
     number_chars(RowIntTmp, [InRow]),
     OutRow is 4 - RowIntTmp,
@@ -169,7 +186,9 @@ unformat_coordinates([InRow, InCol], Str) :-
     InRow1 is 4 - InRow,
     number_codes(InRow1, InRowStr),
     append([InColAscii], InRowStr, Str).
-
+% --------------------------------------------------
+%         A N A L Y S I N G  P O S I T I O N
+% --------------------------------------------------
 is_empty_square(GameState, Row, Col) :-
     get_square(GameState, Row, Col, Square),
     Square == " ".
@@ -177,7 +196,9 @@ is_empty_square(GameState, Row, Col) :-
 is_piece(Piece, GameState, Row, Col) :-
     get_square(GameState, Row, Col, Square),
     Square == Piece.
-
+% --------------------------------------------------
+%                M O V E M E N T S
+% --------------------------------------------------
 make_jump(GameState, RowPiece, ColPiece, [Player, NewBoard, NewAvailable, NewCaptured], RowDest, ColDest) :-
     get_available(GameState, NewAvailable),
     get_board(GameState, Board),
@@ -229,36 +250,82 @@ move(GameState, [move, [RowSrc, ColSrc], [RowDest, ColDest]], [NewPlayer, NewBoa
     replace_row_col(TmpBoard, RowDest, ColDest, Player, NewBoard),
     change_player(GameState, NewPlayer).
     
-validate_jump_opt(OptNum, Len) :-
-    OptNum =< Len,
-    OptNum >= 1.
+% --------------------------------------------------
+%         H U M A N   M O V E   I N P U T
+% --------------------------------------------------
+is_number(X,Digit) :-
+    char_code('0',Zero),
+    char_code('9',Nine),
+    char_code(X,Digit),
+    Digit >= Zero,
+    Digit =< Nine.
+
+is_char(X) :- 
+    char_code('a',A),
+    char_code('z',Z),
+    char_code(X,Char),
+    Char >= A,
+    Char =< Z.
+
+check_boundaries(X,Min,Max) :-
+    X >= Min ,
+    X =< Max.
+check_boundaries(_,_,_) :-
+    print_code("Choose a valid option!"),nl,
+    fail.
+
+read_number_acc(X, X) :- peek_code(10), !.
+read_number_acc(Acc, X) :- \+ peek_code(10),
+                           get_code(Code),
+                           char_code('0', Zero),
+                           Digit is Code-Zero,
+                           Digit >= 0,
+                           Digit < 10,
+                           NewAcc is Acc*10 + Digit,
+                           read_number_acc(NewAcc, X).
+
+read_number(X) :- read_number_acc(0, X),!,
+                  get_code(10).
+read_number(_X):- skip_line,fail.
+read_until_between(Min,Max,X):-
+    repeat,
+    print_code("Choose a jump:"), nl,
+    read_number(X),
+    check_boundaries(X,Min,Max),
+    !.
+read_until_between(Min,Max,Value):-read_until_between(Min,Max,Value).
 
 ask_for_move(Jumps, Move) :-
     display_jumps(Jumps, 1),
     length(Jumps, Len),
-    repeat,
-    print_code("Choose a jump:"), nl,
-    get_char(Opt), skip_line,
-    number_chars(OptNum, [Opt]),
-    validate_jump_opt(OptNum, Len),
+    read_until_between(1,Len,OptNum),
     nth1(OptNum, Jumps, Move), !.
 ask_for_move('P', [place, [Row, Col]]) :-
     repeat,
     print_code("Choose a square to place a piece (e.g. a3)"), nl,
     get_char(ColTmp),
     get_char(RowTmp), skip_line,
+    is_number(RowTmp,_),
+    is_char(ColTmp),
     format_coordinates(RowTmp, ColTmp, Row, Col).
 ask_for_move('M', [move, [RowSrc, ColSrc], [RowDest, ColDest]]) :-
     repeat,
     print_code("Choose a piece to move (e.g. a3)"), nl,
     get_char(ColSrcTmp),
     get_char(RowSrcTmp), skip_line,
+    is_number(RowSrcTmp,_),
+    is_char(ColSrcTmp),
     print_code("Choose a square to move the piece to (e.g. c2)"), nl,
     get_char(ColDestTmp),
     get_char(RowDestTmp), skip_line,
+    is_number(RowDestTmp,_),
+    is_char(ColDestTmp),
     format_coordinates(RowSrcTmp, ColSrcTmp, RowSrc, ColSrc),
     format_coordinates(RowDestTmp, ColDestTmp, RowDest, ColDest).
 
+% --------------------------------------------------
+%        V A L I D   M O V E S   F O R  C P U 
+% --------------------------------------------------
 valid_moves(GameState, Jumps) :-
     findall(Move, move(GameState, Move, _NewGameState), Moves),
     separated(Moves, is_jump, Jumps, _),
@@ -280,28 +347,19 @@ separated([H | T],Pred,[H | Yeses],No):-
 
 is_jump([jump, _, _]).
 
-value(GameState, 10000) :-
-    game_over(GameState, "X").
-value(GameState, -10000) :-
-    game_over(GameState, "O").
-value(GameState, Value) :-
-    get_available(1, "X", GameState, AvailableX),
-    get_captured(1, "X", GameState, CapturedX),
-    get_available(1, "O", GameState, AvailableO),
-    get_captured(1, "O", GameState, CapturedO),
-    InFieldX = 8 - AvailableX - CapturedO,
-    InFieldO = 8 - AvailableO - CapturedX,
-    Value is InFieldX - InFieldO + CapturedX - CapturedO.
 
+% --------------------------------------------------
+%     G E T T I N G   H U M A N / C P U   M O V E
+% --------------------------------------------------
 choose_move(GameState, 'A', Move) :-
     get_player(GameState, Player),
-    Player = "X",
+    Player = "X", !,
     choose_move(GameState, human, Move).
 choose_move(GameState, 'A', Move) :-
     choose_move(1, GameState, Move).
 choose_move(GameState, 'B', Move) :-
     get_player(GameState, Player),
-    Player = "X",
+    Player = "X", !,
     choose_move(GameState, human, Move).
 choose_move(GameState, 'B', Move) :-
     choose_move(2, GameState, Move).
@@ -322,9 +380,13 @@ choose_move(1, GameState, Move) :-
     valid_moves(GameState, Moves),
     random_member(Move, Moves).
 choose_move(2, GameState, Move) :-
-    minimax(GameState, NewGameState, 5, _),
-    move(GameState, Move, NewGameState).
+    %valid_moves(GameState, Moves),
+    %setof(Value-Mv, NewState^( member(Mv, Moves),move(GameState, Mv, NewState),value(NewState, Value) ), [_V-Move|_]).
+    minimax(GameState,4,Move).
 
+% --------------------------------------------------
+%         G A M E   C Y C L E
+% --------------------------------------------------
 game_cycle(GameState, _) :-
     game_over(GameState, Winner),
     congratulate_winner(Winner).
@@ -505,31 +567,96 @@ display_jumps([Jump | T],N) :-
 % --------------------------------------------------
 %    A R T I F I C I A L  I N T E L I G E N C E
 % --------------------------------------------------
+distance(Row1, Col1, Row2, Col2, D) :- 
+    D is sqrt((Row2-Row1)^2 + (Col2-Col1)^2).
+
+min4(V1, V2, V3, V4, V1) :-
+    V1 =< V2,
+    V1 =< V3,
+    V1 =< V4.
+min4(_, V2, V3, V4, V2) :-
+    V2 =< V3,
+    V2 =< V4.
+min4(_, _, V3, V4, V3) :-
+    V3 =< V4.
+min4(_, _, _, V4, V4).
+
+value_piece(GameState, Row-Col, Value) :-
+    get_board(GameState, Board),
+    length(Board,TmpLen),
+    Len is TmpLen - 1,
+    distance(Row,Col,0,0,D1),
+    distance(Row,Col,Len,Len,D2),
+    distance(Row,Col,0,Len,D3),
+    distance(Row,Col,Len,0,D4),
+    min4(D1,D2,D3,D4,Min),
+    Value is 5 + (Min * 2) / TmpLen.
+    
+value_pieces(Player, GameState, Value) :-
+    get_pieces(GameState, Player, Pieces),
+    value_pieces(Player, GameState, Pieces, Value).
+value_pieces(_Player, _GameState, [], 0).
+value_pieces(_Player, GameState, [Piece], Value) :-
+    value_piece(GameState, Piece, Value).
+value_pieces(Player, GameState, [Piece | Rest], Value) :-
+    value_pieces(Player, GameState, Rest, ValueRest),
+    value_piece(GameState, Piece, ValuePiece),
+    Value is ValueRest + ValuePiece.
+    
+value(GameState, 10000) :-
+    game_over(GameState, "X").
+value(GameState, -10000) :-
+    game_over(GameState, "O").
+value(GameState, Value) :-
+    get_captured(1, "X", GameState, CapturedX),
+    get_captured(1, "O", GameState, CapturedO),
+    value_pieces("X", GameState, ValuePiecesX),
+    value_pieces("O", GameState, ValuePiecesO), !,
+    Value is ValuePiecesX - ValuePiecesO + CapturedX * 7 - CapturedO * 7.
+    
+% change_max_min(+MinOrMax, TheOther)
+% Changes the MinMax atom.
+change_max_min(max, min).
+change_max_min(min, max).
+
+% compare_moves(+MinMax, +MoveA, +ValueA, +MoveB, +ValueB, -BetterMove, -BetterValue)
+% Chooses the move with the higher value.
+compare_moves(max, MoveA, ValueA, _, ValueB, MoveA, ValueA) :-
+	ValueA >= ValueB.
+compare_moves(max, _, ValueA, MoveB, ValueB, MoveB, ValueB) :-
+	ValueA < ValueB.
+compare_moves(min, MoveA, ValueA, _, ValueB, MoveA, ValueA) :-
+	ValueA =< ValueB.
+compare_moves(min, _, ValueA, MoveB, ValueB, MoveB, ValueB) :-
+	ValueA > ValueB.
+
+% best_move(+MinMax, +AllMoves, -BestMove, -BestValue)
+% Chooses the next move.
+best_move(MinMax, GameState, [Move], Move, Value, Depth) :-
+    move(GameState, Move, NewGameState),
+    change_max_min(MinMax, Other),
+    minimax_step(Other, NewGameState, _, Value, Depth).
+best_move(MinMax, GameState, [Move | RestMoves], BestMove, BestValue, Depth) :-
+	best_move(MinMax, GameState, RestMoves, CurrentBestM, CurrentBestV, Depth),
+	change_max_min(MinMax, Other),
+    move(GameState, Move, NewGameState),
+	minimax_step(Other, NewGameState, _, BottomBestV, Depth),
+	compare_moves(MinMax, Move, BottomBestV, CurrentBestM, CurrentBestV, BestMove, BestValue).
 
 
-
-minimax(GameState, NewGameState, Depth, Val) :-
-    Depth > 0,
+% minimax_step(+MinMax, +Board, -BestMove, -BestValue)
+% Chooses the best possible move for the current board.
+minimax_step(_, GameState, _, BestValue, 0) :-
+    value(GameState, BestValue).
+minimax_step(_, GameState, _, BestValue, _) :-
+	valid_moves(GameState, []),
+    value(GameState, BestValue).
+minimax_step(MinMax, GameState, BestMove, BestValue, Depth) :-
     Depth1 is Depth - 1,
-    bagof(GameStateTmp, move(GameState, _, GameStateTmp), NewGameStateList),
-    best(NewGameStateList, NewGameState, Depth1, Val), !.
-minimax(GameState, _, _, Val) :-        
-    value(GameState, Val).
+	valid_moves(GameState, AllMoves),
+    best_move(MinMax, GameState, AllMoves, BestMove, BestValue, Depth1).
 
-best([GameState], GameState, Depth, Val) :-
-    minimax(GameState, _, Depth, Val), !.
-best([GameState1 | GameStateList], NewGameState, Depth, BestVal) :-
-    minimax(GameState1, _, Depth, Val1),
-    best(GameStateList, GameState2, Depth, Val2),
-    betterOf(GameState1, Val1, GameState2, Val2, NewGameState, BestVal).
-
-betterOf(GameState0, Val0, _, Val1, GameState0, Val0) :-   % Pos0 better than Pos1
-    min_to_move(GameState0),                         % MIN to move in Pos0
-    Val0 > Val1, !                             % MAX prefers the greater value
-    ;
-    max_to_move(GameState0),                         % MAX to move in Pos0
-    Val0 < Val1, !.                            % MIN prefers the lesser value
-betterOf(_, _, GameState1, Val1, GameState1, Val1).        % Otherwise Pos1 better than Pos0
-
-min_to_move(["O", _, _, _]).
-max_to_move(["X", _, _, _]).
+% minimax(+Board, -BestMove)
+% Matches the next move based on the current board.
+minimax(GameState, Depth, BestMove) :-
+	minimax_step(min, GameState, BestMove, _, Depth).
