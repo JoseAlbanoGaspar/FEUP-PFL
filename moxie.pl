@@ -1,24 +1,21 @@
 :-use_module(library(lists)).
 :-use_module(library(random)).
 
-% initial_state(-GameState)
-% returns the initial game state
-initial_state(
-    [
-        "X",
-        [
-            [" ", " ", " ", " "],
-            [" ", " ", " ", " "],
-            [" ", " ", " ", " "],
-            [" ", " ", " ", " "]
-        ],
-        [8, 8],
-        [0, 0]
-    ]
-).
+% initial_state(+Size, -GameState)
+% returns the initial game state with a board Size x Size
+initial_state(Size, ["X", Board, [8, 8], [0, 0]]) :-
+    replicate(Size," ", Row),
+    replicate(Size,Row,Board).
+
 % --------------------------------------------------
 %        U T I L I T Y   F U N C T I O N S 
 % --------------------------------------------------
+% replicate(+N, +Elem, -Res)
+% replicates Elem N times in list Res
+replicate(0, _ , []).
+replicate(N, Elem, Res):- N1 is N-1, 
+                          replicate(N1, Elem, Res1),
+                          Res = [Elem|Res1].
 
 % distance(+Row1, +Col1, +Row2, +Col2, ?D)
 % computes the distance between point (Row1,Col1) and (Row2,Col2)
@@ -161,7 +158,7 @@ read_until_between(Min, Max, X):-
     read_number(X),
     check_boundaries(X, Min, Max),
     !.
-read_until_between(Min, Max, Value):-read_until_between(Min, Max, Value).
+
 
 % printn(+S, +N)
 % prints S, N times
@@ -197,6 +194,14 @@ print_texts([Text | T],Symbol,Size,Padding):-
         print_text(Text,Symbol,TotPad),
         nl,
         print_texts(T,Symbol,Size,Padding).
+
+% get_extra_padding(+BoardSize, -Extra)
+% gets extra padding based on the size of the board
+get_extra_padding(BoardSize,Extra) :-
+    Extra is BoardSize - 4,
+    Extra =:= 0.
+get_extra_padding(BoardSize, Extra) :-
+    Extra is ceiling((BoardSize - 4) / 2).
 
 % biggest(+ListOfLists, ?Biggest)
 % returns the list of ListOfLists with bigger lenght
@@ -378,18 +383,22 @@ replace_row_col(M,Row,Col,Cell,N) :-
 %         I N P U T  V S .  I N T E R N A L  C O O R D I N A T E S
 % -------------------------------------------------------------------
 
-% format_coordinates(+InRow, +InCol, -OutRow, -OutCol)
+% format_coordinates(+GameState, +InRow, +InCol, -OutRow, -OutCol)
 % translate coordinates from type a4 to [0,0]
-format_coordinates(InRow, InCol, OutRow, OutCol) :-
+format_coordinates(GameState, InRow, InCol, OutRow, OutCol) :-
+    get_board(GameState, Board),
+    length(Board, Size),
     number_chars(RowIntTmp, [InRow]),
-    OutRow is 4 - RowIntTmp,
+    OutRow is Size - RowIntTmp,
     letter_to_number(InCol, OutCol).
 
-% unformat_coordinates(+[InRow, InCol], -Str)
+% unformat_coordinates(+GameState, +[InRow, InCol], -Str)
 % translate coordinates from type [0,0] to a4
-unformat_coordinates([InRow, InCol], Str) :-
+unformat_coordinates(GameState, [InRow, InCol], Str) :-
+    get_board(GameState, Board),
+    length(Board, Size),
     InColAscii is InCol + 97,
-    InRow1 is 4 - InRow,
+    InRow1 is Size - InRow,
     number_codes(InRow1, InRowStr),
     append([InColAscii], InRowStr, Str).
 % --------------------------------------------------
@@ -470,22 +479,22 @@ move(GameState, [move, [RowSrc, ColSrc], [RowDest, ColDest]], [NewPlayer, NewBoa
 %         H U M A N   M O V E   I N P U T
 % --------------------------------------------------
 
-% ask_for_move(+Type,-Move)
+% ask_for_move(+GameState, +Type,-Move)
 % asks the player to insert a syntaticaly correct move
-ask_for_move(Jumps, Move) :-
-    display_jumps(Jumps, 1),
+ask_for_move(GameState, Jumps, Move) :-
+    display_jumps(GameState, Jumps, 1),
     length(Jumps, Len),
     read_until_between(1,Len,OptNum),
     nth1(OptNum, Jumps, Move), !.
-ask_for_move('P', [place, [Row, Col]]) :-
+ask_for_move(GameState, 'P', [place, [Row, Col]]) :-
     repeat,
     print_code("Choose a square to place a piece (e.g. a3)"), nl,
     get_char(ColTmp),
     get_char(RowTmp), skip_line,
     is_number(RowTmp,_),
     is_char(ColTmp),
-    format_coordinates(RowTmp, ColTmp, Row, Col).
-ask_for_move('M', [move, [RowSrc, ColSrc], [RowDest, ColDest]]) :-
+    format_coordinates(GameState, RowTmp, ColTmp, Row, Col).
+ask_for_move(GameState, 'M', [move, [RowSrc, ColSrc], [RowDest, ColDest]]) :-
     repeat,
     print_code("Choose a piece to move (e.g. a3)"), nl,
     get_char(ColSrcTmp),
@@ -497,8 +506,8 @@ ask_for_move('M', [move, [RowSrc, ColSrc], [RowDest, ColDest]]) :-
     get_char(RowDestTmp), skip_line,
     is_number(RowDestTmp,_),
     is_char(ColDestTmp),
-    format_coordinates(RowSrcTmp, ColSrcTmp, RowSrc, ColSrc),
-    format_coordinates(RowDestTmp, ColDestTmp, RowDest, ColDest).
+    format_coordinates(GameState, RowSrcTmp, ColSrcTmp, RowSrc, ColSrc),
+    format_coordinates(GameState, RowDestTmp, ColDestTmp, RowDest, ColDest).
 
 % --------------------------------------------------
 %        V A L I D   M O V E S   F O R  C P U 
@@ -539,12 +548,12 @@ choose_move(GameState, human, Move) :-
     separated(Moves, is_jump, Jumps, _),
     length(Jumps, Len),
     Len > 0,
-    ask_for_move(Jumps, Move), !.
-choose_move(_, human, Move) :-
+    ask_for_move(GameState, Jumps, Move), !.
+choose_move(GameState, human, Move) :-
     repeat,
     print_code("Choose a type of move [(P)lace, (M)ove]"), nl,
     get_char(Type), skip_line,
-    ask_for_move(Type, Move), !.
+    ask_for_move(GameState, Type, Move), !.
 choose_move(1, GameState, Move) :-
     valid_moves(GameState, Moves),
     random_member(Move, Moves).
@@ -561,7 +570,7 @@ choose_move(2, GameState, Move) :-
 % executes game cycle
 game_cycle(GameState, _) :-
     game_over(GameState, Winner),
-    congratulate_winner(Winner).
+    congratulate_winner(GameState, Winner).
 game_cycle(GameState, Mode) :-
     choose_move(GameState, Mode, Move),
     move(GameState, Move, NewGameState),
@@ -574,8 +583,9 @@ game_cycle(GameState, Mode) :-
 % play
 % used to initiate game
 play :-
-    initial_state(GameState),
     get_game_mode(Mode),
+    get_size(Size),
+    initial_state(Size, GameState),
     display_game(GameState),
     game_cycle(GameState, Mode).
 % --------------------------------------------------
@@ -602,26 +612,71 @@ print_multi_banner(LoL,Symbol,Padding):-   % prints banners
     nl,
     printn(Symbol,TotLen).
 
-% print_board(+Board, +RowNumber)
-% print the board and row coordinate
-print_board([X | _],1):-
-    intersperse(X," -- ",Line),
-    int_to_string(1,NumberPrint),
-    append(NumberPrint,"   ",Coordinate),
-    append(Coordinate,Line,Printable),
-    print_text(Printable,'*',13),nl,
-    print_text("",'*',23),nl,
-    print_text("    a    b    c    d",'*',13),nl.
+% get_row_divisor(+Size, +InitSize, -Divisor)
+% used to separate the print of the board's rows. Replicates Size times the string "    |"
+get_row_divisor(0,InitSize, "") :- 
+    0 =:= InitSize mod 2.
+get_row_divisor(0,_InitSize," ").
+get_row_divisor(N, InitSize, New) :-
+    append("    |",Res, New),
+    N1 is N - 1,
+    get_row_divisor(N1, InitSize, Res).
 
-print_board([X | XS],BoardSize):-
-    intersperse(X," -- ",Line),
-    int_to_string(BoardSize,NumberPrint),
+% get_col_coordinates(+Size, +InitSize, +Code, -Coordinates)
+% gets column coordinates for board in the format "    a    b    c"...
+get_col_coordinates(0, InitSize, _, "") :-
+    0 =:= InitSize mod 2.
+get_col_coordinates(0, _InitSize, _, " ").
+get_col_coordinates(N, InitSize, Code, Coordinates) :-
+    append("    ",[Code],Col),
+    append(Col,Res,Coordinates),
+    N1 is N - 1,
+    Code1 is Code + 1,
+    get_col_coordinates(N1,InitSize, Code1, Res).
+
+% get_col_coordinates(+Size, +InitSize, -Coordinates)
+% gets column coordinates for board in the format "    a    b    c"...
+get_col_coordinates(N, InitSize, Coordinates) :- 
+    char_code('a',Code),
+    get_col_coordinates(N, InitSize, Code, Coordinates).
+
+% add_space_if_odd(+Line, -Line)
+% if Line has odd length then appends a space in the end of Line, otherwise do nothing
+add_space_if_odd(Line, Line) :-
+    length(Line,N),
+    0 =:= N mod 2.
+add_space_if_odd(TmpLine, Line) :-
+    append(TmpLine, " ", Line).
+
+% print_board(+Board, +RowNumber,+BoardSize)
+% print the board and coordinates
+print_board([X | _],1,InitSize):-
+    intersperse(X," -- ",TmpLine),
+    add_space_if_odd(TmpLine, Line),
+    number_codes(1, NumberPrint),
     append(NumberPrint,"   ",Coordinate),
     append(Coordinate,Line,Printable),
-    print_text(Printable,'*',13),nl,
-    print_text("    |    |    |    |",'*',13),nl,
+    Pad is 13 - (InitSize - 4)*2,
+    print_text(Printable,'*',Pad),nl,
+    get_extra_padding(InitSize, ExtraPadding),
+    OtherPad is 23 + ExtraPadding,
+    print_text("",'*',OtherPad),nl,
+    get_col_coordinates(InitSize, InitSize, ColCoords),
+    print_text(ColCoords,'*',Pad),nl.
+
+print_board([X | XS],BoardSize,InitSize):-
+    intersperse(X," -- ",TmpLine),
+    add_space_if_odd(TmpLine, Line),
+    number_codes(BoardSize,NumberPrint),
+    append(NumberPrint,"   ",Coordinate),
+    append(Coordinate,Line,Printable),
+    Pad is 13 - (InitSize - 4)*2,
+    print_text(Printable,'*',Pad),
+    nl,
+    get_row_divisor(InitSize, InitSize, RowDivisor),
+    print_text(RowDivisor,'*',Pad),nl,
     NewSize is BoardSize - 1,
-    print_board(XS,NewSize).
+    print_board(XS,NewSize,InitSize).
 
 % get_printable_info(+GameState, +Msg)
 % Based on GameState, extracts player, available and captured pieces and construct 2 printable strings in Msg
@@ -646,21 +701,29 @@ get_printable_info(GameState,[S8,S9]):-
 % display_game(+GameState)
 % displays the game
 display_game(GameState):- 
-    print_multi_banner([" M O X I E"],'*',18),nl,
     get_board(GameState,Board),
     length(Board,BoardSize),
-    print_text("",'*',23),nl,
-    print_board(Board,BoardSize),
-    print_text("",'*',23),nl,
+    get_extra_padding(BoardSize, ExtraPadding),
+    TitlePadding is 18 + ExtraPadding,
+    print_multi_banner([" M O X I E"],'*',TitlePadding),nl,
+    Padding is 23 + ExtraPadding,
+    print_text("",'*',Padding),nl,
+    print_board(Board,BoardSize,BoardSize),
+    print_text("",'*',Padding),nl,
     % computing strings based on GameState
     get_printable_info(GameState,[A,B]),
-    print_multi_banner(["Avaliable pieces:        Captured pieces: ",A,"",B],'*',2),nl.
+    InfoPadding is 2 + ExtraPadding,
+    print_multi_banner(["Avaliable pieces:        Captured pieces: ",A,"",B],'*',InfoPadding),nl.
 
-% congratulate_winner(+Winner)
+% congratulate_winner(+GameState, +Winner)
 % prints a banner with a congratulation message to the winner of the game
-congratulate_winner(Winner):- 
+congratulate_winner(GameState, Winner):- 
     append("The winner is  ",Winner,Msg),
-    print_multi_banner([Msg],'*',15).
+    get_board(GameState,Board),
+    length(Board,Len),
+    get_extra_padding(Len,Extra),
+    Pad is 15 + Extra,
+    print_multi_banner([Msg],'*',Pad).
 
 % verify_opt(+Opt)
 % verifies if game mode option is valid
@@ -677,23 +740,32 @@ get_game_mode(Opt) :-
     get_char(Opt), skip_line,
     \+ verify_opt(Opt), !.
 
-% print_jump(+Jump)
+% get_size(+Size)
+% gets the size of the board by user input
+get_size(Size) :-
+    repeat,
+    print_code("Choose a size for the board (between 3 and 9):"), nl,
+    read_number(Size),
+    check_boundaries(Size, 3, 9),
+    !.
+
+% print_jump(+GameState, +Jump)
 % displays one jump possibility
-print_jump([H]) :-
-    unformat_coordinates(H, PrintableJump),
+print_jump(GameState, [H]) :-
+    unformat_coordinates(GameState, H, PrintableJump),
     print_code(PrintableJump).
-print_jump([H | T]) :-
-    unformat_coordinates(H, PrintableJump),
+print_jump(GameState, [H | T]) :-
+    unformat_coordinates(GameState, H, PrintableJump),
     print_code(PrintableJump),
     print_code(" -> "),
     print_jump(T).
 
-% display_jumps(+Jumps,+OptNumber)
+% display_jumps(+GameState, +Jumps,+OptNumber)
 % displays all jump possibilities
-display_jumps([],_).
-display_jumps([Jump | T],N) :- 
+display_jumps(_, [], _).
+display_jumps(GameState, [Jump | T],N) :- 
     nth0(2,Jump,[Piece | Places]),
-    unformat_coordinates(Piece, PrintablePiece),
+    unformat_coordinates(GameState, Piece, PrintablePiece),
     number_codes(N,PrintableNumber),
     print_code(PrintableNumber),
     print_code(" - "),
@@ -703,7 +775,7 @@ display_jumps([Jump | T],N) :-
     print_code("Jumps: "),
     print_code(PrintablePiece),
     print_code(" -> "),
-    print_jump(Places),
+    print_jump(GameState, Places),
     nl,
     N1 is N + 1,
     display_jumps(T,N1).
