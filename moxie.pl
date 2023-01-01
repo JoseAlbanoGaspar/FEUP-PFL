@@ -758,7 +758,7 @@ print_jump(GameState, [H | T]) :-
     unformat_coordinates(GameState, H, PrintableJump),
     print_code(PrintableJump),
     print_code(" -> "),
-    print_jump(T).
+    print_jump(GameState, T).
 
 % display_jumps(+GameState, +Jumps,+OptNumber)
 % displays all jump possibilities
@@ -778,7 +778,7 @@ display_jumps(GameState, [Jump | T],N) :-
     print_jump(GameState, Places),
     nl,
     N1 is N + 1,
-    display_jumps(T,N1).
+    display_jumps(GameState,T,N1).
 
 % --------------------------------------------------
 %    A R T I F I C I A L  I N T E L I G E N C E
