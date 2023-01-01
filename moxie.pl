@@ -62,32 +62,38 @@ inbounds(GameState, Row, Col) :-
     get_board(GameState, Board),
     replace_row_col(Board,Row,Col,_,_).
 
-% is_next_to(+RowSrc, +ColSrc, +RowDest, +ColSrc, ?Dir)
+% is_next_to(+GameState, +RowSrc, +ColSrc, +RowDest, +ColSrc, ?Dir)
 % verifies if position (RowSrc,ColSrc) and (RowDest,ColDest) are adjacent and if yes returns vector direction
-is_next_to(RowSrc, ColSrc, RowDest, ColSrc, [-1, 0]) :-
+is_next_to(_, RowSrc, ColSrc, RowDest, ColSrc, [-1, 0]) :-
     RowSrc > 0,
     RowDest is RowSrc - 1.
-is_next_to(RowSrc, ColSrc, RowSrc, ColDest, [0, -1]) :-
+is_next_to(_, RowSrc, ColSrc, RowSrc, ColDest, [0, -1]) :-
     ColSrc > 0,
     ColDest is ColSrc - 1.
-is_next_to(RowSrc, ColSrc, RowDest, ColSrc, [1, 0]) :-
-    RowSrc < 3,
+is_next_to(GameState, RowSrc, ColSrc, RowDest, ColSrc, [1, 0]) :-
+    get_board(GameState, Board),
+    length(Board, Len),
+    Size is Len - 1,
+    RowSrc < Size,
     RowDest is RowSrc + 1.
-is_next_to(RowSrc, ColSrc, RowSrc, ColDest, [0, 1]) :-
-    ColSrc < 3,
+is_next_to(GameState, RowSrc, ColSrc, RowSrc, ColDest, [0, 1]) :-
+    get_board(GameState, Board),
+    length(Board, Len),
+    Size is Len - 1,
+    ColSrc < Size,
     ColDest is ColSrc + 1.
-is_next_to(RowSrc, ColSrc, RowDest, ColDest, [-1, -1]) :-
-    is_next_to(RowSrc, ColSrc, RowDest, _, [-1, 0]),
-    is_next_to(RowSrc, ColSrc, _, ColDest, [0, -1]).
-is_next_to(RowSrc, ColSrc, RowDest, ColDest, [1, 1]) :-
-    is_next_to(RowSrc, ColSrc, RowDest, _, [1, 0]),
-    is_next_to(RowSrc, ColSrc, _, ColDest, [0, 1]).
-is_next_to(RowSrc, ColSrc, RowDest, ColDest, [-1, 1]) :-
-    is_next_to(RowSrc, ColSrc, RowDest, _, [-1, 0]),
-    is_next_to(RowSrc, ColSrc, _, ColDest, [0, 1]).
-is_next_to(RowSrc, ColSrc, RowDest, ColDest, [1, -1]) :-
-    is_next_to(RowSrc, ColSrc, RowDest, _, [1, 0]),
-    is_next_to(RowSrc, ColSrc, _, ColDest, [0, -1]).
+is_next_to(GameState, RowSrc, ColSrc, RowDest, ColDest, [-1, -1]) :-
+    is_next_to(GameState, RowSrc, ColSrc, RowDest, _, [-1, 0]),
+    is_next_to(GameState, RowSrc, ColSrc, _, ColDest, [0, -1]).
+is_next_to(GameState, RowSrc, ColSrc, RowDest, ColDest, [1, 1]) :-
+    is_next_to(GameState, RowSrc, ColSrc, RowDest, _, [1, 0]),
+    is_next_to(GameState, RowSrc, ColSrc, _, ColDest, [0, 1]).
+is_next_to(GameState, RowSrc, ColSrc, RowDest, ColDest, [-1, 1]) :-
+    is_next_to(GameState, RowSrc, ColSrc, RowDest, _, [-1, 0]),
+    is_next_to(GameState, RowSrc, ColSrc, _, ColDest, [0, 1]).
+is_next_to(GameState, RowSrc, ColSrc, RowDest, ColDest, [1, -1]) :-
+    is_next_to(GameState, RowSrc, ColSrc, RowDest, _, [1, 0]),
+    is_next_to(GameState, RowSrc, ColSrc, _, ColDest, [0, -1]).
 
 % separated(+List,+Pred,?Yeses,?No)
 % filters the elements that make Pred true and return those in Yeses. The other ones are returned in No
@@ -426,10 +432,10 @@ make_jump(GameState, RowPiece, ColPiece, [Player, NewBoard, NewAvailable, NewCap
     get_board(GameState, Board),
     get_player(GameState, Player),
     is_piece(Player, GameState, RowPiece, ColPiece),
-    is_next_to(RowPiece, ColPiece, RowEnemy, ColEnemy, Dir),
+    is_next_to(GameState, RowPiece, ColPiece, RowEnemy, ColEnemy, Dir),
     change_player(GameState, EnemyPlayer),
     is_piece(EnemyPlayer, GameState, RowEnemy, ColEnemy),
-    is_next_to(RowEnemy, ColEnemy, RowDest, ColDest, Dir),
+    is_next_to(GameState, RowEnemy, ColEnemy, RowDest, ColDest, Dir),
     is_empty_square(GameState, RowDest, ColDest),
     replace_row_col(Board, RowPiece, ColPiece, " ", TmpBoard),          % executing move  
     replace_row_col(TmpBoard, RowEnemy, ColEnemy, " ", TmpBoard2),
@@ -467,7 +473,7 @@ move(GameState, [move, [RowSrc, ColSrc], [RowDest, ColDest]], [NewPlayer, NewBoa
     get_board(GameState, Board),
     get_player(GameState, Player),
     inbounds(GameState, RowSrc, ColSrc),
-    is_next_to(RowSrc, ColSrc, RowDest, ColDest, _Dir),             % check if the squares are adjacent
+    is_next_to(GameState, RowSrc, ColSrc, RowDest, ColDest, _Dir),             % check if the squares are adjacent
     is_empty_square(GameState, RowDest, ColDest),                   % check if Destination is empty
     get_square(GameState, RowSrc, ColSrc, Square),                  % check if the players are moving their pieces
     Square == Player,
